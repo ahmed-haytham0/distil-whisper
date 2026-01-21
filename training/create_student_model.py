@@ -104,19 +104,27 @@ def init_student_model_from_teacher(
             f"Got {len(decoder_layers_numbers)} layers number for {decoder_layers} decoder layers."
         )
 
+    logger.info(f"Loading teacher model from: {teacher_checkpoint}")
+    logger.info(f"Cache directory: {cache_dir}")
+    
     teacher_model = WhisperForConditionalGeneration.from_pretrained(
         teacher_checkpoint,
         cache_dir=cache_dir,
         subfolder=subfolder,
         low_cpu_mem_usage=True,
     )
-    processor = WhisperProcessor.from_pretrained(teacher_checkpoint)
-    generation_config = GenerationConfig.from_pretrained(teacher_checkpoint)
+    processor = WhisperProcessor.from_pretrained(teacher_checkpoint, cache_dir=cache_dir)
+    generation_config = GenerationConfig.from_pretrained(teacher_checkpoint, cache_dir=cache_dir)
     generation_config.forced_decoder_ids = None
 
     teacher_config = teacher_model.config
     teacher_encoder_layers = teacher_config.encoder_layers
     teacher_decoder_layers = teacher_config.decoder_layers
+
+    logger.info(f"Teacher model architecture:")
+    logger.info(f"  Encoder layers: {teacher_encoder_layers}")
+    logger.info(f"  Decoder layers: {teacher_decoder_layers}")
+    logger.info(f"  d_model: {teacher_config.d_model}")
 
     student_config = copy.deepcopy(teacher_config)
     student_config.update(
@@ -125,6 +133,10 @@ def init_student_model_from_teacher(
             "decoder_layers": decoder_layers,
         }
     )
+
+    logger.info(f"Student model architecture:")
+    logger.info(f"  Encoder layers: {student_config.encoder_layers}")
+    logger.info(f"  Decoder layers: {student_config.decoder_layers}")
 
     encoder_mapping = np.linspace(0, teacher_encoder_layers - 1, student_config.encoder_layers, dtype=int)
     encoder_mapping[-1] = teacher_encoder_layers - 1
