@@ -1026,18 +1026,21 @@ def main():
         student_model.train()
         teacher_model.eval()
 
-        student_outputs = student_model(**batch)
+        # Remove language key before forward pass
+        batch_for_model = {k: v for k, v in batch.items() if k != 'language'}
+        
+        student_outputs = student_model(**batch_for_model)
         with torch.no_grad():
             if share_hidden_states:
                 encoder_outputs = BaseModelOutput(student_outputs.encoder_last_hidden_state.to(dtype=teacher_dtype))
-                teacher_outputs = teacher_model(encoder_outputs=encoder_outputs, labels=batch["labels"])
+                teacher_outputs = teacher_model(encoder_outputs=encoder_outputs, labels=batch_for_model["labels"])
             else:
-                teacher_outputs = teacher_model(**batch)
+                teacher_outputs = teacher_model(**batch_for_model)
 
         ce_loss = student_outputs.loss
         teacher_distribution = nn.functional.softmax(teacher_outputs.logits / temperature, dim=-1)
         student_distribution = nn.functional.log_softmax(student_outputs.logits / temperature, dim=-1)
-        kl_loss = kl_divergence(teacher_distribution, student_distribution, batch["labels"]) * temperature**2
+        kl_loss = kl_divergence(teacher_distribution, student_distribution, batch_for_model["labels"]) * temperature**2
 
         loss = training_args.ce_weight * ce_loss + training_args.kl_weight * kl_loss
         metrics = {"loss": loss, "ce_loss": ce_loss, "kl_loss": kl_loss}
@@ -1047,18 +1050,21 @@ def main():
         student_model.eval()
         teacher_model.eval()
 
+        # Remove language key before forward pass
+        batch_for_model = {k: v for k, v in batch.items() if k != 'language'}
+        
         with torch.no_grad():
-            student_outputs = student_model(**batch)
+            student_outputs = student_model(**batch_for_model)
             if share_hidden_states:
                 encoder_outputs = BaseModelOutput(student_outputs.encoder_last_hidden_state.to(dtype=teacher_dtype))
-                teacher_outputs = teacher_model(encoder_outputs=encoder_outputs, labels=batch["labels"])
+                teacher_outputs = teacher_model(encoder_outputs=encoder_outputs, labels=batch_for_model["labels"])
             else:
-                teacher_outputs = teacher_model(**batch)
+                teacher_outputs = teacher_model(**batch_for_model)
 
         ce_loss = student_outputs.loss
         student_distribution = nn.functional.log_softmax(student_outputs.logits, dim=-1)
         teacher_distribution = nn.functional.softmax(teacher_outputs.logits, dim=-1)
-        kl_loss = kl_divergence(teacher_distribution, student_distribution, batch["labels"])
+        kl_loss = kl_divergence(teacher_distribution, student_distribution, batch_for_model["labels"])
 
         loss = training_args.ce_weight * ce_loss + training_args.kl_weight * kl_loss
         metrics = {"loss": loss, "ce_loss": ce_loss, "kl_loss": kl_loss}
