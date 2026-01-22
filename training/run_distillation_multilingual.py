@@ -421,17 +421,25 @@ def log_pred(
 ):
     """Helper function to log target/predicted transcriptions to weights and biases."""
     if accelerator.is_main_process:
-        wandb_tracker = accelerator.get_tracker("wandb")
-        cur_step_pretty = f"{int(step // 1000)}k" if step > 1000 else step
-        prefix_pretty = prefix.replace("/", "-")
+        # Check if wandb tracker is available
+        try:
+            wandb_tracker = accelerator.get_tracker("wandb")
+            cur_step_pretty = f"{int(step // 1000)}k" if step > 1000 else step
+            prefix_pretty = prefix.replace("/", "-")
 
-        str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
-        wandb_tracker.log_table(
-            table_name=f"predictions/{prefix_pretty}-step-{cur_step_pretty}",
-            columns=["Target", "Pred", "Norm Target", "Norm Pred"],
-            data=str_data[:num_lines],
-            step=step,
-        )
+            str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
+            wandb_tracker.log_table(
+                table_name=f"predictions/{prefix_pretty}-step-{cur_step_pretty}",
+                columns=["Target", "Pred", "Norm Target", "Norm Pred"],
+                data=str_data[:num_lines],
+                step=step,
+            )
+        except ValueError:
+            # wandb tracker not available, log to console instead
+            logger.info(f"Sample predictions at step {step}:")
+            for i in range(min(5, len(pred_str))):
+                logger.info(f"  Target: {label_str[i][:100]}...")
+                logger.info(f"  Pred:   {pred_str[i][:100]}...")
 
 
 def sorted_checkpoints(output_dir=None, checkpoint_prefix="checkpoint") -> List[str]:
