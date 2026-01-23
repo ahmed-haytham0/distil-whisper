@@ -48,6 +48,8 @@ Estimated size (FP16/BF16): ~0.40 GB
 
 ## Step 2: Run Distillation Training
 
+**Note:** Encoder is NOT frozen because we reduced it (32→16). It needs to adapt.
+
 ```bash
 accelerate launch distil-whisper/training/run_distillation_multilingual.py \
   --model_name_or_path "./hamsa-distil-16enc-2dec" \
@@ -56,24 +58,23 @@ accelerate launch distil-whisper/training/run_distillation_multilingual.py \
   --eval_dataset_path "/workspace/STT/data/general_normalized_test" \
   --text_column_name "normalized_text" \
   --eval_text_column_name "normalized_text" \
-  --freeze_encoder \
   --cache_dir "/workspace/dis-cache" \
   --push_to_hub \
   --hub_model_id "nadsoft/hamsa-distil-16enc-2dec" \
   --do_train \
   --do_eval \
   --predict_with_generate \
-  --eval_steps 1000 \
-  --per_device_train_batch_size 64 \
-  --per_device_eval_batch_size 32 \
-  --learning_rate 5e-6 \
-  --warmup_steps 500 \
-  --max_steps 50000 \
+  --eval_steps 2000 \
+  --per_device_train_batch_size 32 \
+  --per_device_eval_batch_size 16 \
+  --learning_rate 1e-5 \
+  --warmup_steps 1000 \
+  --max_steps 80000 \
   --output_dir "./hamsa-distil-16enc-2dec-trained" \
   --gradient_checkpointing \
   --dtype "bfloat16" \
   --logging_steps 25 \
-  --save_steps 1000 \
+  --save_steps 2000 \
   --attn_implementation "sdpa" \
   --report_to "tensorboard"
 ```
@@ -82,7 +83,7 @@ accelerate launch distil-whisper/training/run_distillation_multilingual.py \
 
 ## Step 3: Resume from Checkpoint (if training stops)
 
-Same command without `--overwrite_output_dir`:
+Same command (will auto-detect checkpoint):
 
 ```bash
 accelerate launch distil-whisper/training/run_distillation_multilingual.py \
@@ -92,22 +93,21 @@ accelerate launch distil-whisper/training/run_distillation_multilingual.py \
   --eval_dataset_path "/workspace/STT/data/general_normalized_test" \
   --text_column_name "normalized_text" \
   --eval_text_column_name "normalized_text" \
-  --freeze_encoder \
   --cache_dir "/workspace/dis-cache" \
   --do_train \
   --do_eval \
   --predict_with_generate \
-  --eval_steps 1000 \
-  --per_device_train_batch_size 64 \
-  --per_device_eval_batch_size 32 \
-  --learning_rate 5e-6 \
-  --warmup_steps 500 \
-  --max_steps 50000 \
+  --eval_steps 2000 \
+  --per_device_train_batch_size 32 \
+  --per_device_eval_batch_size 16 \
+  --learning_rate 1e-5 \
+  --warmup_steps 1000 \
+  --max_steps 80000 \
   --output_dir "./hamsa-distil-16enc-2dec-trained" \
   --gradient_checkpointing \
   --dtype "bfloat16" \
   --logging_steps 25 \
-  --save_steps 1000 \
+  --save_steps 2000 \
   --attn_implementation "sdpa" \
   --report_to "tensorboard"
 ```
@@ -124,16 +124,15 @@ Open: `http://localhost:6006`
 
 ---
 
-## Key Arguments
+## Key Training Settings
 
-| Argument | Value | Description |
-|----------|-------|-------------|
-| `--encoder_layers` | 16 | Reduced encoder |
-| `--decoder_layers` | 2 | Optimal decoder size |
-| `--freeze_encoder` | True | Keep encoder frozen |
-| `--dtype` | bfloat16 | Training precision |
-| `--learning_rate` | 5e-6 | Learning rate |
-| `--max_steps` | 50000 | Total training steps |
+| Setting | Value | Why |
+|---------|-------|-----|
+| `--freeze_encoder` | **NOT used** | Encoder reduced, needs training |
+| `--per_device_train_batch_size` | 32 | Lower (training encoder uses more memory) |
+| `--learning_rate` | 1e-5 | Higher LR for full model training |
+| `--max_steps` | 80000 | More steps needed |
+| `--warmup_steps` | 1000 | Longer warmup for stability |
 
 ---
 
@@ -166,7 +165,8 @@ LANGUAGE_MAP = {
 |-------|----------|
 | No space left | `rm -rf ~/.cache/huggingface/datasets/*` |
 | Flash attention error | Use `--attn_implementation "sdpa"` |
-| Output dir exists | Remove `--overwrite_output_dir` to resume |
+| OOM (out of memory) | Reduce batch size to 16 |
+| Resume training | Don't use `--overwrite_output_dir` |
 
 ---
 
