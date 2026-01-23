@@ -196,6 +196,27 @@ def init_student_model_from_teacher(
     # remove the teacher params and model
     del teacher_model
 
+    # Calculate and log model parameters
+    total_params = sum(p.numel() for p in student_model.parameters())
+    encoder_params = sum(p.numel() for p in student_model.model.encoder.parameters())
+    decoder_params = sum(p.numel() for p in student_model.model.decoder.parameters())
+    
+    # Estimate size in GB (assuming float32, 4 bytes per param)
+    size_gb = (total_params * 4) / (1024 ** 3)
+    size_gb_fp16 = (total_params * 2) / (1024 ** 3)
+    
+    logger.info("=" * 60)
+    logger.info("STUDENT MODEL SUMMARY")
+    logger.info("=" * 60)
+    logger.info(f"Encoder layers: {student_config.encoder_layers}")
+    logger.info(f"Decoder layers: {student_config.decoder_layers}")
+    logger.info(f"Total parameters: {total_params:,} ({total_params/1e6:.1f}M)")
+    logger.info(f"  Encoder parameters: {encoder_params:,} ({encoder_params/1e6:.1f}M)")
+    logger.info(f"  Decoder parameters: {decoder_params:,} ({decoder_params/1e6:.1f}M)")
+    logger.info(f"Estimated size (FP32): {size_gb:.2f} GB")
+    logger.info(f"Estimated size (FP16/BF16): {size_gb_fp16:.2f} GB")
+    logger.info("=" * 60)
+
     # save the converted weights and model
     if save_dir is not None:
         student_model.save_pretrained(save_dir)
